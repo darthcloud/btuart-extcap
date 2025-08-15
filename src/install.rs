@@ -3,8 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::adb;
-
 /// The config file is located in the same directory as this executable when it
 /// is installed (e.g. `~/.local/lib/wireshark/extcap/btsnoop-config`).
 pub const CONFIG_FILE_NAME: &str = "btsnoop-config";
@@ -27,7 +25,6 @@ pub async fn install_extcap() -> anyhow::Result<()> {
         }
     };
     symlink_executable(&extcap_dir).await?;
-    resolve_adb_path(&extcap_dir).await?;
     Ok(())
 }
 
@@ -62,29 +59,6 @@ async fn symlink_executable(extcap_dir: &Path) -> anyhow::Result<()> {
     println!("Creating symlink at {executable_dest:?}");
     let _ = tokio::fs::remove_file(&executable_dest).await;
     tokio::fs::symlink(std::env::current_exe()?, executable_dest).await?;
-    Ok(())
-}
-
-async fn resolve_adb_path(extcap_dir: &Path) -> anyhow::Result<()> {
-    let adb_path = if let Some(adb_path) = adb::resolve_adb_path().await {
-        match input(&format!(
-            "Enter path to adb executable [Default: {}]: ",
-            adb_path.to_string_lossy()
-        ))? {
-            s if s.is_empty() => adb_path.to_string_lossy().to_string(),
-            s => s,
-        }
-    } else {
-        input("Enter path to adb executable [Cannot find suitable default]: ")?
-    };
-    if !PathBuf::from(&adb_path).exists() {
-        anyhow::bail!("{adb_path} does not exist")
-    }
-    tokio::fs::write(
-        extcap_dir.join(CONFIG_FILE_NAME),
-        format!("ADB_PATH={adb_path}").as_bytes(),
-    )
-    .await?;
     Ok(())
 }
 

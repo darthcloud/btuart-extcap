@@ -1,6 +1,5 @@
 #![deny(unused_must_use)]
 
-use adb::{AdbError, BtsnoopLogMode, BtsnoopLogSettings};
 use anyhow::anyhow;
 use btsnoop::{FileHeader, PacketHeader};
 use btsnoop_ext::Direction;
@@ -34,7 +33,6 @@ use tokio::{
     sync::Mutex,
 };
 
-mod adb;
 mod btsnoop_ext;
 mod install;
 
@@ -114,29 +112,29 @@ async fn handle_control_packet(
     control_packet: ControlPacket<'_>,
     extcap_control: &mut Option<ExtcapControlSender>,
 ) -> anyhow::Result<()> {
-    if control_packet.command == ControlCommand::Set {
-        if control_packet.control_number == BT_LOGGING_ON_BUTTON.control_number {
-            // Turn on
-            BtsnoopLogSettings::set_mode(&serial, BtsnoopLogMode::Full).await?;
-            extcap_control
-                .send(BT_LOGGING_ON_BUTTON.set_enabled(false))
-                .await?;
-            extcap_control
-                .send(BT_LOGGING_OFF_BUTTON.set_enabled(true))
-                .await?;
-        } else if control_packet.control_number == BT_LOGGING_OFF_BUTTON.control_number {
-            // Turn off
-            BtsnoopLogSettings::set_mode(&serial, BtsnoopLogMode::Disabled).await?;
-            extcap_control
-                .send(BT_LOGGING_OFF_BUTTON.set_enabled(false))
-                .await?;
-            extcap_control
-                .send(BT_LOGGING_ON_BUTTON.set_enabled(true))
-                .await?;
-        } else {
-            panic!("Unknown control number {}", control_packet.control_number);
-        }
-    }
+    // if control_packet.command == ControlCommand::Set {
+    //     if control_packet.control_number == BT_LOGGING_ON_BUTTON.control_number {
+    //         // Turn on
+    //         BtsnoopLogSettings::set_mode(&serial, BtsnoopLogMode::Full).await?;
+    //         extcap_control
+    //             .send(BT_LOGGING_ON_BUTTON.set_enabled(false))
+    //             .await?;
+    //         extcap_control
+    //             .send(BT_LOGGING_OFF_BUTTON.set_enabled(true))
+    //             .await?;
+    //     } else if control_packet.control_number == BT_LOGGING_OFF_BUTTON.control_number {
+    //         // Turn off
+    //         BtsnoopLogSettings::set_mode(&serial, BtsnoopLogMode::Disabled).await?;
+    //         extcap_control
+    //             .send(BT_LOGGING_OFF_BUTTON.set_enabled(false))
+    //             .await?;
+    //         extcap_control
+    //             .send(BT_LOGGING_ON_BUTTON.set_enabled(true))
+    //             .await?;
+    //     } else {
+    //         panic!("Unknown control number {}", control_packet.control_number);
+    //     }
+    // }
     Ok(())
 }
 
@@ -153,41 +151,7 @@ async fn print_packets(
     let write_result = if let Some(test_file) = btsnoop_log_file_path.strip_prefix("local:") {
         write_pcap_packets(File::open(test_file).await?, output_fifo, display_delay).await
     } else {
-        match adb::root(serial).await {
-            Err(e @ AdbError::RootDeclined) => {
-                extcap_control.info_message("Unable to run `adb root`. Make sure your device is on a userdebug or eng build").await?;
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                Err(e)?
-            }
-            Err(e) => Err(e)?,
-            Ok(_) => (),
-        }
-        if BtsnoopLogSettings::mode(serial).await? == BtsnoopLogMode::Full {
-            extcap_control
-                .send(BT_LOGGING_ON_BUTTON.set_enabled(false))
-                .await?;
-            extcap_control
-                .send(BT_LOGGING_OFF_BUTTON.set_enabled(true))
-                .await?;
-        } else {
-            extcap_control
-                .send(BT_LOGGING_OFF_BUTTON.set_enabled(false))
-                .await?;
-            extcap_control
-                .send(BT_LOGGING_ON_BUTTON.set_enabled(true))
-                .await?;
-            extcap_control.status_message("BTsnoop logging is turned off. Use View > Interface Toolbars to show the buttons to turn it on").await?;
-        }
-        let mut cmd = adb::shell(
-            serial,
-            format!("tail -F -c +0 {btsnoop_log_file_path}").as_str(),
-        )
-        .await?
-        .stdout(Stdio::piped())
-        .spawn()?;
-        info!("Running adb tail -F -c +0 {btsnoop_log_file_path}");
-        let stdout = cmd.stdout.as_mut().unwrap();
-        write_pcap_packets(stdout, output_fifo, display_delay).await
+        write_pcap_packets(File::open("/dev/ttyUSB0").await?, output_fifo, display_delay).await
     };
     extcap_control
         .status_message("BT capture connection closed")
