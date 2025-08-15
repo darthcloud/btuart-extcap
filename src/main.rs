@@ -204,28 +204,15 @@ async fn main() -> anyhow::Result<()> {
         .build();
     match args.extcap.run() {
         Ok(ExtcapStep::Interfaces(interfaces_step)) => {
-            let interfaces = match adb::adb_devices(args.adb_path).await {
-                Ok(adb_devices) => adb_devices
-                    .iter()
-                    .map(|d| {
-                        Interface::builder()
-                            .value(format!("btsnoop-{}", d.serial).into())
-                            .display(format!("BTsnoop {} {}", d.display_name, d.serial).into())
+            let interfaces =
+                        vec![Interface::builder()
+                            .value(format!("uart-hci").into())
+                            .display(format!("UART HCI").into())
                             .dlt(dlt.clone())
-                            .build()
-                    })
-                    .collect::<Vec<_>>(),
-                Err(e) => {
-                    vec![Interface::builder()
-                        .value("btsnoop-error".into())
-                        .display(format!("btsnoop error: {e:?}").into())
-                        .dlt(dlt.clone())
-                        .build()]
-                }
-            };
+                            .build()];
             interfaces_step.list_interfaces(
                 &Metadata {
-                    display_description: "Android btsnoop".into(),
+                    display_description: "UART HCI".into(),
                     ..cargo_metadata!()
                 },
                 &interfaces.iter().collect::<Vec<&Interface>>(),
